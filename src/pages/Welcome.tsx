@@ -33,7 +33,21 @@ const Welcome = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-accent to-background flex items-center justify-center p-4">
       <div className="max-w-4xl w-full space-y-8 animate-fade-in">
         {/* Hero Section */}
+        
+        <div className="right-10 absolute top-10">
+          <p className="text-lg text-center"> Hearing issues?</p>
+         
+           <Button
+            size="lg"
+            className="text-lg h-14 px-8 bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
+            
+          >
+            <a href="http://localhost:5173/">Convert Lectures into ASL Gestures</a>
+           
+          </Button>
+        </div>
         <div className="text-center space-y-4">
+          
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-primary mb-4 shadow-glow">
             <BookOpen className="w-10 h-10 text-primary-foreground" />
           </div>

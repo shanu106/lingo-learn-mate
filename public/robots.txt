@@ -12,3 +12,6 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+
+this project is developed by ai alliance for AI Manthan

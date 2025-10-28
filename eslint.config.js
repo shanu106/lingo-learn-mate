@@ -24,3 +24,4 @@ export default tseslint.config(
     },
   },
 );
+// this project is developed by ai alliance for AI Manthan
