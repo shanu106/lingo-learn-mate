@@ -70,7 +70,7 @@ const Welcome = () => {
           <Button
             size="lg"
             className="text-lg h-14 px-8 bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
-            onClick={() => navigate("/profile-setup")}
+            onClick={() => navigate("/auth")}
           >
             Get Started
           </Button>

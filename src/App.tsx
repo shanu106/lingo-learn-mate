@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Lesson from "./pages/Lesson";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import { Auth } from "./components/Auth";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +21,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Welcome />} />
+          <Route path="/auth" element={<Auth />} />
           <Route path="/profile-setup" element={<ProfileSetup />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/lesson/:id" element={<Lesson />} />

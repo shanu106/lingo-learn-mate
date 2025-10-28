@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Volume2, Mic, MicOff, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Lesson = () => {
   const { id } = useParams();
@@ -13,41 +14,85 @@ const Lesson = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [userAnswer, setUserAnswer] = useState("");
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [lessonData, setLessonData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [userLanguage, setUserLanguage] = useState("en");
 
-  // Mock lesson data - in production, this would come from backend
-  const lessonData = {
-    title: id === "voice-practice" ? "Voice Practice" : "Mathematics - Algebra Basics",
-    steps: [
-      {
-        type: "explanation",
-        content: "Let's learn about algebraic expressions. An algebraic expression combines numbers and variables using operations.",
-        question: null,
-        answer: null,
-      },
-      {
-        type: "question",
-        content: "What is 2x + 3 when x = 5?",
-        question: "Calculate the value",
-        answer: "13",
-      },
-      {
-        type: "question",
-        content: "Solve for x: x + 7 = 12",
-        question: "Find the value of x",
-        answer: "5",
-      },
-    ],
-  };
+  // Fetch user profile and lesson data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          navigate("/auth");
+          return;
+        }
+
+        // Get user's preferred language
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('preferred_language')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile) {
+          setUserLanguage(profile.preferred_language);
+        }
+
+        // Generate lesson using AI
+        const response = await supabase.functions.invoke('generate-lesson', {
+          body: {
+            topic: id || "Mathematics - Algebra",
+            language: profile?.preferred_language || "en",
+            grade: "Grade 8"
+          }
+        });
+
+        if (response.error) throw response.error;
+        
+        setLessonData(response.data);
+      } catch (error: any) {
+        console.error('Error fetching lesson:', error);
+        toast.error('Failed to load lesson');
+        navigate("/dashboard");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id, navigate]);
+
+  if (loading || !lessonData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading lesson...</p>
+        </div>
+      </div>
+    );
+  }
 
   const currentContent = lessonData.steps[currentStep];
   const progress = ((currentStep + 1) / lessonData.steps.length) * 100;
 
-  // Text-to-Speech function
+  // Text-to-Speech function with multilingual support
   const speakText = (text: string) => {
     if ('speechSynthesis' in window) {
+      // Language code mapping
+      const langMap: Record<string, string> = {
+        'en': 'en-US',
+        'hi': 'hi-IN',
+        'mr': 'mr-IN',
+        'bn': 'bn-IN',
+        'te': 'te-IN',
+        'ta': 'ta-IN',
+      };
+
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US'; // In production, use profile language
-      utterance.rate = 0.9;
+      utterance.lang = langMap[userLanguage] || 'en-US';
+      utterance.rate = 0.85;
       utterance.pitch = 1;
       window.speechSynthesis.speak(utterance);
       toast.success("Playing audio");
@@ -56,15 +101,24 @@ const Lesson = () => {
     }
   };
 
-  // Speech Recognition function
+  // Speech Recognition function with multilingual support
   const startListening = () => {
     if (!('webkitSpeechRecognition' in window)) {
       toast.error("Speech recognition not supported in this browser");
       return;
     }
 
+    const langMap: Record<string, string> = {
+      'en': 'en-US',
+      'hi': 'hi-IN',
+      'mr': 'mr-IN',
+      'bn': 'bn-IN',
+      'te': 'te-IN',
+      'ta': 'ta-IN',
+    };
+
     const recognition = new (window as any).webkitSpeechRecognition();
-    recognition.lang = 'en-US';
+    recognition.lang = langMap[userLanguage] || 'en-US';
     recognition.continuous = false;
     recognition.interimResults = false;
 
@@ -92,19 +146,34 @@ const Lesson = () => {
     recognition.start();
   };
 
-  const checkAnswer = (answer: string) => {
+  const checkAnswer = async (answer: string) => {
     if (currentContent.type !== "question" || !currentContent.answer) return;
 
-    const isAnswerCorrect = answer.toLowerCase().includes(currentContent.answer.toLowerCase());
-    setIsCorrect(isAnswerCorrect);
+    try {
+      const response = await supabase.functions.invoke('check-answer', {
+        body: {
+          userAnswer: answer,
+          correctAnswer: currentContent.answer,
+          language: userLanguage
+        }
+      });
 
-    if (isAnswerCorrect) {
-      toast.success("Great job! That's correct! 🎉");
-      speakText("Excellent! Your answer is correct.");
-      setTimeout(() => handleNext(), 2000);
-    } else {
-      toast.error("Not quite right. Try again!");
-      speakText("That's not correct. Let me explain the answer.");
+      if (response.error) throw response.error;
+
+      const { isCorrect: correct, feedback } = response.data;
+      setIsCorrect(correct);
+
+      if (correct) {
+        toast.success("Great job! That's correct! 🎉");
+        speakText(feedback);
+        setTimeout(() => handleNext(), 2000);
+      } else {
+        toast.error("Not quite right. Try again!");
+        speakText(feedback);
+      }
+    } catch (error) {
+      console.error('Error checking answer:', error);
+      toast.error('Failed to check answer');
     }
   };
 
