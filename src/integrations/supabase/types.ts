@@ -14,7 +14,110 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      lessons: {
+        Row: {
+          content: Json
+          created_at: string | null
+          grade: string
+          id: string
+          language: string
+          subject: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          content: Json
+          created_at?: string | null
+          grade: string
+          id?: string
+          language?: string
+          subject: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: Json
+          created_at?: string | null
+          grade?: string
+          id?: string
+          language?: string
+          subject?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          full_name: string
+          grade: string
+          id: string
+          preferred_language: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          full_name: string
+          grade: string
+          id: string
+          preferred_language?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          full_name?: string
+          grade?: string
+          id?: string
+          preferred_language?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      student_progress: {
+        Row: {
+          attempts: number | null
+          completed: boolean | null
+          created_at: string | null
+          current_step: number | null
+          id: string
+          lesson_id: string
+          score: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          attempts?: number | null
+          completed?: boolean | null
+          created_at?: string | null
+          current_step?: number | null
+          id?: string
+          lesson_id: string
+          score?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          attempts?: number | null
+          completed?: boolean | null
+          created_at?: string | null
+          current_step?: number | null
+          id?: string
+          lesson_id?: string
+          score?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
