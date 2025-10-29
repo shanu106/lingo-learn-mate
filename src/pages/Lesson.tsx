@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ const Lesson = () => {
   const [loading, setLoading] = useState(true);
   const [userLanguage, setUserLanguage] = useState("en");
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const hasRetryRef = useRef(false);
   
   const { supported: srSupported, startListening: startRec } = useSpeechRecognition();
 
@@ -148,6 +149,7 @@ const Lesson = () => {
       return;
     }
 
+    hasRetryRef.current = false;
     const lang = langMap[userLanguage] || 'en-US';
     console.log('Starting speech recognition with language:', lang);
 
@@ -168,7 +170,6 @@ const Lesson = () => {
       },
       (err) => {
         console.error('Speech recognition error:', err);
-        // Handle common error types with clearer messages
         const messages: Record<string, string> = {
           'not-allowed': 'Microphone permission denied. Please allow access and try again.',
           'service-not-allowed': 'Speech service not allowed. Check browser settings.',
@@ -178,6 +179,35 @@ const Lesson = () => {
           'network': 'Network error - speech recognition service unavailable. Please use text input below.',
           'language-not-supported': `${userLanguage.toUpperCase()} language not supported. Try English or use text input.`,
         };
+
+        // Auto-fallback once to English if the selected locale causes a network error
+        if (err === 'network' && !hasRetryRef.current) {
+          hasRetryRef.current = true;
+          const fallbackLang = 'en-US';
+          toast.info('Speech service unavailable for this language. Trying English...');
+          startRec(
+            fallbackLang,
+            (transcript) => {
+              console.log('Speech recognized (fallback):', transcript);
+              setUserAnswer(transcript);
+              checkAnswer(transcript);
+              setIsListening(false);
+            },
+            () => {
+              setIsListening(true);
+            },
+            () => {
+              setIsListening(false);
+            },
+            (e2) => {
+              console.error('Speech recognition error (fallback):', e2);
+              toast.error(messages[e2] || `Speech recognition error: ${e2}. Please use text input instead.`);
+              setIsListening(false);
+            }
+          );
+          return;
+        }
+
         toast.error(messages[err] || `Speech recognition error: ${err}. Please use text input instead.`);
         setIsListening(false);
       }
