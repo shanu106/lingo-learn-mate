@@ -34,12 +34,21 @@ serve(async (req) => {
 
     const systemPrompt = languagePrompts[language] || languagePrompts['en'];
 
-    const userPrompt = `Create a lesson about "${topic}" for ${grade} students. 
+    const userPrompt = `Create an educational lesson about "${topic}" for ${grade} students. 
     Respond in ${language} language.
     
-    Generate EXACTLY 3 lesson steps in JSON format:
-    1. One explanation step
-    2. Two question steps with answers
+    IMPORTANT: Make the content appropriate for ${grade} level:
+    - For Grade 1-3: Use simple words, basic concepts, short sentences
+    - For Grade 4-6: Use moderate vocabulary, introduce more concepts
+    - For Grade 7-9: Use advanced vocabulary, deeper explanations
+    - For Grade 10-12: Use college-prep level content, complex reasoning
+    
+    Generate EXACTLY 6 lesson steps in JSON format:
+    1. One explanation step (introduce the topic)
+    2. One reading step (detailed content with examples)
+    3. One question step
+    4. One reading step (deeper dive or related concepts)
+    5. Two question steps (progressively harder)
     
     Format:
     {
@@ -47,20 +56,38 @@ serve(async (req) => {
       "steps": [
         {
           "type": "explanation",
-          "content": "explanation text in ${language}",
+          "content": "brief introduction to ${topic} appropriate for ${grade}",
+          "question": null,
+          "answer": null
+        },
+        {
+          "type": "reading",
+          "content": "detailed content with examples, facts, and context (3-5 paragraphs) appropriate for ${grade}",
           "question": null,
           "answer": null
         },
         {
           "type": "question",
-          "content": "question text in ${language}",
-          "question": "short question in ${language}",
+          "content": "question context in ${language}",
+          "question": "simple question about the reading appropriate for ${grade}",
+          "answer": "correct answer"
+        },
+        {
+          "type": "reading",
+          "content": "more advanced content building on previous concepts (2-3 paragraphs) appropriate for ${grade}",
+          "question": null,
+          "answer": null
+        },
+        {
+          "type": "question",
+          "content": "question context in ${language}",
+          "question": "moderate difficulty question appropriate for ${grade}",
           "answer": "correct answer"
         },
         {
           "type": "question",
-          "content": "question text in ${language}",
-          "question": "short question in ${language}",
+          "content": "question context in ${language}",
+          "question": "challenging question that tests understanding appropriate for ${grade}",
           "answer": "correct answer"
         }
       ]

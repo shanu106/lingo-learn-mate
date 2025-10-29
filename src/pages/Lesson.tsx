@@ -7,8 +7,6 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Volume2, Mic, MicOff, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
-
 const Lesson = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -19,10 +17,10 @@ const Lesson = () => {
   const [lessonData, setLessonData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userLanguage, setUserLanguage] = useState("en");
+  const [userGrade, setUserGrade] = useState("Grade 8");
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const hasRetryRef = useRef(false);
-  
-  const { supported: srSupported, startListening: startRec } = useSpeechRecognition();
+  const [score, setScore] = useState(0);
+  const [totalQuestions, setTotalQuestions] = useState(0);
 
   // Fetch user profile and lesson data
   useEffect(() => {
@@ -34,15 +32,16 @@ const Lesson = () => {
           return;
         }
 
-        // Get user's preferred language
+        // Get user's preferred language and grade
         const { data: profile } = await supabase
           .from('profiles')
-          .select('preferred_language')
+          .select('preferred_language, grade')
           .eq('id', user.id)
           .single();
         
         if (profile) {
           setUserLanguage(profile.preferred_language);
+          setUserGrade(profile.grade);
         }
 
         // Generate lesson using AI
@@ -50,7 +49,7 @@ const Lesson = () => {
           body: {
             topic: id || "Mathematics - Algebra",
             language: profile?.preferred_language || "en",
-            grade: "Grade 8"
+            grade: profile?.grade || "Grade 8"
           }
         });
 
@@ -61,6 +60,9 @@ const Lesson = () => {
         }
         
         setLessonData(response.data);
+        // Count total questions for final score
+        const questions = response.data?.steps?.filter((s: any) => s.type === "question") || [];
+        setTotalQuestions(questions.length);
       } catch (error: any) {
         console.error('Error fetching lesson:', error);
         toast.error('Failed to load lesson');
@@ -127,76 +129,9 @@ const Lesson = () => {
     }
   };
 
-  // Speech Recognition function with multilingual support (cross-browser)
+  // Use Google STT as the main speech recognition function
   const startListening = async () => {
-    const langMap: Record<string, string> = {
-      'en': 'en-US',
-      'hi': 'hi-IN',
-      'mr': 'mr-IN',
-      'bn': 'bn-IN',
-      'te': 'te-IN',
-      'ta': 'ta-IN',
-      'gu': 'gu-IN',
-      'kn': 'kn-IN',
-      'ml': 'ml-IN',
-      'or': 'or-IN',
-      'pa': 'pa-IN',
-      'ur': 'ur-IN',
-    };
-
-    if (!srSupported) {
-      toast.info("Using backend speech recognition...");
-      await startBackendRecording();
-      return;
-    }
-
-    hasRetryRef.current = false;
-    const lang = langMap[userLanguage] || 'en-US';
-    console.log('Starting speech recognition with language:', lang);
-
-    startRec(
-      lang,
-      (transcript) => {
-        console.log('Speech recognized:', transcript);
-        setUserAnswer(transcript);
-        checkAnswer(transcript);
-        setIsListening(false);
-      },
-      () => {
-        setIsListening(true);
-        toast.info("Listening... Speak your answer");
-      },
-      () => {
-        setIsListening(false);
-      },
-      async (err) => {
-        console.error('Speech recognition error:', err);
-        
-        // For network errors, immediately fallback to backend recording
-        if (err === 'network') {
-          toast.info('Browser speech unavailable, using backend...');
-          await startBackendRecording();
-          return;
-        }
-
-        const messages: Record<string, string> = {
-          'not-allowed': 'Microphone permission denied. Please allow access and try again.',
-          'service-not-allowed': 'Speech service not allowed. Check browser settings.',
-          'no-speech': 'No speech detected. Please speak clearly and try again.',
-          'audio-capture': 'No microphone found or not accessible.',
-          'aborted': 'Listening aborted. Tap the mic to try again.',
-          'language-not-supported': `${userLanguage.toUpperCase()} language not supported. Using backend...`,
-        };
-
-        if (err === 'language-not-supported') {
-          await startBackendRecording();
-          return;
-        }
-
-        toast.error(messages[err] || `Speech recognition error: ${err}. Please use text input instead.`);
-        setIsListening(false);
-      }
-    );
+    await startBackendRecording();
   };
 
   const startBackendRecording = async () => {
@@ -294,6 +229,7 @@ const Lesson = () => {
       setIsCorrect(correct);
 
       if (correct) {
+        setScore(score + 1);
         toast.success("Great job! That's correct! 🎉");
         speakText(feedback);
         setTimeout(() => handleNext(), 2000);
@@ -313,8 +249,16 @@ const Lesson = () => {
       setUserAnswer("");
       setIsCorrect(null);
     } else {
-      toast.success("Lesson completed! 🎊");
-      navigate("/dashboard");
+      // Show final results
+      const percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
+      const resultMessage = percentage >= 70 
+        ? `Excellent! You scored ${score}/${totalQuestions} (${percentage.toFixed(0)}%)! 🌟`
+        : percentage >= 50
+        ? `Good job! You scored ${score}/${totalQuestions} (${percentage.toFixed(0)}%). Keep practicing! 📚`
+        : `You scored ${score}/${totalQuestions} (${percentage.toFixed(0)}%). Let's try again! 💪`;
+      
+      toast.success(resultMessage, { duration: 5000 });
+      setTimeout(() => navigate("/dashboard"), 3000);
     }
   };
 
@@ -358,7 +302,9 @@ const Lesson = () => {
           <div className="mb-8">
             <div className="flex items-start justify-between mb-4">
               <h2 className="text-2xl font-bold flex-1">
-                {currentContent.type === "explanation" ? "Learn" : currentContent.question}
+                {currentContent.type === "explanation" ? "📚 Learn" : 
+                 currentContent.type === "reading" ? "📖 Read & Understand" : 
+                 currentContent.question}
               </h2>
               <div className="flex gap-2 flex-shrink-0">
                 {isSpeaking ? (
@@ -381,7 +327,9 @@ const Lesson = () => {
                 )}
               </div>
             </div>
-            <p className="text-lg text-muted-foreground leading-relaxed">{currentContent.content}</p>
+            <div className="text-lg text-muted-foreground leading-relaxed whitespace-pre-line">
+              {currentContent.content}
+            </div>
           </div>
 
           {/* Answer Section (for questions) */}
@@ -475,9 +423,18 @@ const Lesson = () => {
               className="flex-1 bg-gradient-primary"
               disabled={currentContent.type === "question" && !userAnswer}
             >
-              {currentStep < lessonData.steps.length - 1 ? "Next" : "Complete Lesson"}
+              {currentStep < lessonData.steps.length - 1 ? "Next" : "See Results 🎯"}
             </Button>
           </div>
+
+          {/* Score Display */}
+          {totalQuestions > 0 && (
+            <Card className="mt-4 p-4 bg-accent">
+              <p className="text-sm text-center font-medium">
+                Score: {score}/{totalQuestions} correct
+              </p>
+            </Card>
+          )}
         </Card>
 
         {/* Hint Card */}
