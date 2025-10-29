@@ -268,13 +268,6 @@ const Lesson = () => {
     handleNext();
   };
 
-  useEffect(() => {
-    // Auto-play explanation when step changes
-    if (currentContent.type === "explanation") {
-      speakText(currentContent.content);
-    }
-  }, [currentStep]);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent to-background">
       {/* Header */}
