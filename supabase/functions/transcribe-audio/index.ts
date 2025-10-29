@@ -45,10 +45,10 @@ serve(async (req) => {
     // Import the private key
     const pemHeader = "-----BEGIN PRIVATE KEY-----";
     const pemFooter = "-----END PRIVATE KEY-----";
-    const pemContents = privateKey.substring(
-      pemHeader.length,
-      privateKey.length - pemFooter.length
-    ).replace(/\s/g, '');
+    const pemContents = privateKey
+      .replace(pemHeader, '')
+      .replace(pemFooter, '')
+      .replace(/[\r\n\s]/g, '');
     
     const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
     
