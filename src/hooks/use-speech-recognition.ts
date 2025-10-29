@@ -69,8 +69,10 @@ export const useSpeechRecognition = () => {
 
         recognition.onerror = (e: any) => {
           const err: string = e?.error || "unknown-error";
+          console.error('SpeechRecognition error event:', e);
           setError(err);
           onError?.(err);
+          setIsListening(false);
         };
 
         recognition.onend = () => {

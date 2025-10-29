@@ -19,6 +19,7 @@ const Lesson = () => {
   const [lessonData, setLessonData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userLanguage, setUserLanguage] = useState("en");
+  const [isSpeaking, setIsSpeaking] = useState(false);
   
   const { supported: srSupported, startListening: startRec } = useSpeechRecognition();
 
@@ -84,6 +85,9 @@ const Lesson = () => {
   // Text-to-Speech function with multilingual support
   const speakText = (text: string) => {
     if ('speechSynthesis' in window) {
+      // Stop any ongoing speech first
+      window.speechSynthesis.cancel();
+      
       // Language code mapping
       const langMap: Record<string, string> = {
         'en': 'en-US',
@@ -98,10 +102,23 @@ const Lesson = () => {
       utterance.lang = langMap[userLanguage] || 'en-US';
       utterance.rate = 0.85;
       utterance.pitch = 1;
+      
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      
       window.speechSynthesis.speak(utterance);
       toast.success("Playing audio");
     } else {
       toast.error("Speech synthesis not supported");
+    }
+  };
+
+  const stopSpeech = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      toast.info("Audio stopped");
     }
   };
 
@@ -114,18 +131,26 @@ const Lesson = () => {
       'bn': 'bn-IN',
       'te': 'te-IN',
       'ta': 'ta-IN',
+      'gu': 'gu-IN',
+      'kn': 'kn-IN',
+      'ml': 'ml-IN',
+      'or': 'or-IN',
+      'pa': 'pa-IN',
+      'ur': 'ur-IN',
     };
 
     if (!srSupported) {
-      toast.error("Speech recognition not supported in this browser");
+      toast.error("Speech recognition not supported in this browser. Please use the text input instead.");
       return;
     }
 
     const lang = langMap[userLanguage] || 'en-US';
+    console.log('Starting speech recognition with language:', lang);
 
     startRec(
       lang,
       (transcript) => {
+        console.log('Speech recognized:', transcript);
         setUserAnswer(transcript);
         checkAnswer(transcript);
         setIsListening(false);
@@ -138,6 +163,7 @@ const Lesson = () => {
         setIsListening(false);
       },
       (err) => {
+        console.error('Speech recognition error:', err);
         // Handle common error types with clearer messages
         const messages: Record<string, string> = {
           'not-allowed': 'Microphone permission denied. Please allow access and try again.',
@@ -145,8 +171,10 @@ const Lesson = () => {
           'no-speech': 'No speech detected. Please speak clearly and try again.',
           'audio-capture': 'No microphone found or not accessible.',
           'aborted': 'Listening aborted. Tap the mic to try again.',
+          'network': 'Network error. Please check your connection.',
+          'language-not-supported': `${userLanguage.toUpperCase()} language not supported. Try English or use text input.`,
         };
-        toast.error(messages[err] || 'Could not recognize speech. Please try again.');
+        toast.error(messages[err] || `Speech recognition error: ${err}. Please use text input instead.`);
         setIsListening(false);
       }
     );
@@ -236,14 +264,26 @@ const Lesson = () => {
               <h2 className="text-2xl font-bold flex-1">
                 {currentContent.type === "explanation" ? "Learn" : currentContent.question}
               </h2>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => speakText(currentContent.content)}
-                className="flex-shrink-0"
-              >
-                <Volume2 className="w-5 h-5" />
-              </Button>
+              <div className="flex gap-2 flex-shrink-0">
+                {isSpeaking ? (
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={stopSpeech}
+                    className="animate-pulse"
+                  >
+                    <XCircle className="w-5 h-5" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => speakText(currentContent.content)}
+                  >
+                    <Volume2 className="w-5 h-5" />
+                  </Button>
+                )}
+              </div>
             </div>
             <p className="text-lg text-muted-foreground leading-relaxed">{currentContent.content}</p>
           </div>
