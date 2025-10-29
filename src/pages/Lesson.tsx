@@ -53,7 +53,11 @@ const Lesson = () => {
           }
         });
 
-        if (response.error) throw response.error;
+        if (response.error) {
+          const errorMsg = response.error.message || 'Failed to load lesson';
+          toast.error(errorMsg);
+          throw response.error;
+        }
         
         setLessonData(response.data);
       } catch (error: any) {
