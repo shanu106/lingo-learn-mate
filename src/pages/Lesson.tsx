@@ -128,7 +128,7 @@ const Lesson = () => {
   };
 
   // Speech Recognition function with multilingual support (cross-browser)
-  const startListening = () => {
+  const startListening = async () => {
     const langMap: Record<string, string> = {
       'en': 'en-US',
       'hi': 'hi-IN',
@@ -145,7 +145,8 @@ const Lesson = () => {
     };
 
     if (!srSupported) {
-      toast.error("Speech recognition not supported in this browser. Please use the text input instead.");
+      toast.info("Using backend speech recognition...");
+      await startBackendRecording();
       return;
     }
 
@@ -168,43 +169,27 @@ const Lesson = () => {
       () => {
         setIsListening(false);
       },
-      (err) => {
+      async (err) => {
         console.error('Speech recognition error:', err);
+        
+        // For network errors, immediately fallback to backend recording
+        if (err === 'network') {
+          toast.info('Browser speech unavailable, using backend...');
+          await startBackendRecording();
+          return;
+        }
+
         const messages: Record<string, string> = {
           'not-allowed': 'Microphone permission denied. Please allow access and try again.',
           'service-not-allowed': 'Speech service not allowed. Check browser settings.',
           'no-speech': 'No speech detected. Please speak clearly and try again.',
           'audio-capture': 'No microphone found or not accessible.',
           'aborted': 'Listening aborted. Tap the mic to try again.',
-          'network': 'Network error - speech recognition service unavailable. Please use text input below.',
-          'language-not-supported': `${userLanguage.toUpperCase()} language not supported. Try English or use text input.`,
+          'language-not-supported': `${userLanguage.toUpperCase()} language not supported. Using backend...`,
         };
 
-        // Auto-fallback once to English if the selected locale causes a network error
-        if (err === 'network' && !hasRetryRef.current) {
-          hasRetryRef.current = true;
-          const fallbackLang = 'en-US';
-          toast.info('Speech service unavailable for this language. Trying English...');
-          startRec(
-            fallbackLang,
-            (transcript) => {
-              console.log('Speech recognized (fallback):', transcript);
-              setUserAnswer(transcript);
-              checkAnswer(transcript);
-              setIsListening(false);
-            },
-            () => {
-              setIsListening(true);
-            },
-            () => {
-              setIsListening(false);
-            },
-            (e2) => {
-              console.error('Speech recognition error (fallback):', e2);
-              toast.error(messages[e2] || `Speech recognition error: ${e2}. Please use text input instead.`);
-              setIsListening(false);
-            }
-          );
+        if (err === 'language-not-supported') {
+          await startBackendRecording();
           return;
         }
 
@@ -212,6 +197,83 @@ const Lesson = () => {
         setIsListening(false);
       }
     );
+  };
+
+  const startBackendRecording = async () => {
+    try {
+      setIsListening(true);
+      console.log('Starting backend audio recording...');
+      toast.info("Recording for 5 seconds...");
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      const audioChunks: Blob[] = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        console.log('Recording stopped, processing audio...');
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        
+        // Convert to base64
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          const base64Audio = (reader.result as string).split(',')[1];
+          
+          try {
+            const langMap: Record<string, string> = {
+              'en': 'en-US',
+              'hi': 'hi-IN',
+              'mr': 'mr-IN',
+              'bn': 'bn-IN',
+              'te': 'te-IN',
+              'ta': 'ta-IN',
+            };
+            const lang = langMap[userLanguage] || 'en-US';
+            
+            const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+              body: { audio: base64Audio, languageCode: lang }
+            });
+
+            if (error) throw error;
+
+            if (data.text) {
+              console.log('Backend transcription:', data.text);
+              setUserAnswer(data.text);
+              checkAnswer(data.text);
+              toast.success("Got your answer!");
+            } else {
+              toast.error('No speech detected. Please try again.');
+            }
+          } catch (err) {
+            console.error('Backend transcription error:', err);
+            toast.error('Transcription failed. Please use text input.');
+          }
+          
+          setIsListening(false);
+        };
+
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+
+      // Stop recording after 5 seconds
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+      }, 5000);
+
+    } catch (err) {
+      console.error('Recording error:', err);
+      toast.error('Microphone access denied. Please use text input.');
+      setIsListening(false);
+    }
   };
 
   const checkAnswer = async (answer: string) => {
