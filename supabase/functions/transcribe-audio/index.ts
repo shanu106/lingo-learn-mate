@@ -19,17 +19,34 @@ serve(async (req) => {
 
     console.log('Transcribing audio for language:', languageCode);
 
-    // Parse Google Cloud credentials
-    const credentials = JSON.parse(Deno.env.get('GOOGLE_CLOUD_CREDENTIALS') || '{}');
-    
+    // Load Google Cloud credentials (either inline JSON or from URL)
+    async function loadGoogleCredentials() {
+      const credsUrl = Deno.env.get('GOOGLE_CLOUD_CREDENTIALS_URL');
+      const credsInline = Deno.env.get('GOOGLE_CLOUD_CREDENTIALS');
+      if (credsUrl) {
+        const res = await fetch(credsUrl);
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          throw new Error(`Failed to fetch credentials from URL: ${res.status} ${errText}`);
+        }
+        return await res.json();
+      }
+      if (credsInline) return JSON.parse(credsInline);
+      throw new Error('Missing GOOGLE_CLOUD_CREDENTIALS or GOOGLE_CLOUD_CREDENTIALS_URL');
+    }
+
+    const credentials = await loadGoogleCredentials();
+
     if (!credentials.private_key || !credentials.client_email) {
       throw new Error('Invalid Google Cloud credentials');
     }
 
     // Create JWT for Google Cloud authentication
-    const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+    const toBase64Url = (input: string) =>
+      btoa(input).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const header = toBase64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
     const now = Math.floor(Date.now() / 1000);
-    const claim = btoa(JSON.stringify({
+    const claim = toBase64Url(JSON.stringify({
       iss: credentials.client_email,
       scope: 'https://www.googleapis.com/auth/cloud-platform',
       aud: 'https://oauth2.googleapis.com/token',
@@ -117,7 +134,7 @@ serve(async (req) => {
     if (!speechResponse.ok) {
       const error = await speechResponse.text();
       console.error('Speech API error:', error);
-      throw new Error('Speech recognition failed');
+      throw new Error(`Speech recognition failed: ${error}`);
     }
 
     const result = await speechResponse.json();
