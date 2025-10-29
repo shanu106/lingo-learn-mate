@@ -171,7 +171,7 @@ const Lesson = () => {
           'no-speech': 'No speech detected. Please speak clearly and try again.',
           'audio-capture': 'No microphone found or not accessible.',
           'aborted': 'Listening aborted. Tap the mic to try again.',
-          'network': 'Network error. Please check your connection.',
+          'network': 'Network error - speech recognition service unavailable. Please use text input below.',
           'language-not-supported': `${userLanguage.toUpperCase()} language not supported. Try English or use text input.`,
         };
         toast.error(messages[err] || `Speech recognition error: ${err}. Please use text input instead.`);
@@ -312,6 +312,29 @@ const Lesson = () => {
                 <p className="text-sm text-muted-foreground text-center">
                   {isListening ? "Listening..." : "Tap to speak your answer"}
                 </p>
+              </div>
+
+              {/* Text Input Fallback */}
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground text-center">Or type your answer:</p>
+                <div className="flex gap-2">
+                  <Input
+                    value={userAnswer}
+                    onChange={(e) => setUserAnswer(e.target.value)}
+                    placeholder="Type your answer here..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && userAnswer.trim()) {
+                        checkAnswer(userAnswer);
+                      }
+                    }}
+                  />
+                  <Button 
+                    onClick={() => checkAnswer(userAnswer)}
+                    disabled={!userAnswer.trim()}
+                  >
+                    Submit
+                  </Button>
+                </div>
               </div>
 
               {/* User Answer Display */}
