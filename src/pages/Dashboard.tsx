@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { BookOpen, Mic, Trophy, Settings, TrendingUp } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface StudentProfile {
   name: string;
@@ -14,18 +16,56 @@ interface StudentProfile {
 const Dashboard = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [progress] = useState(35); // Mock progress
 
   useEffect(() => {
-    const storedProfile = localStorage.getItem("studentProfile");
-    if (!storedProfile) {
-      navigate("/profile-setup");
-      return;
-    }
-    setProfile(JSON.parse(storedProfile));
-  }, [navigate]);
+    checkProfile();
+  }, []);
 
-  if (!profile) return null;
+  const checkProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate("/auth");
+        return;
+      }
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (!profileData) {
+        navigate("/profile-setup");
+        return;
+      }
+
+      setProfile({
+        name: profileData.full_name,
+        grade: profileData.grade,
+        language: profileData.preferred_language,
+      });
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      toast.error('Failed to load profile');
+      navigate("/profile-setup");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading || !profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const subjects = [
     { id: "math", name: "Mathematics", icon: "📐", progress: 45, color: "bg-blue-500" },
@@ -110,7 +150,7 @@ const Dashboard = () => {
                     <div className="text-4xl">{subject.icon}</div>
                     <div>
                       <h3 className="font-semibold text-lg">{subject.name}</h3>
-                      <p className="text-sm text-muted-foreground">Class {profile.grade}</p>
+                      <p className="text-sm text-muted-foreground">{profile.grade}</p>
                     </div>
                   </div>
                   <Button size="sm" className="bg-gradient-primary">

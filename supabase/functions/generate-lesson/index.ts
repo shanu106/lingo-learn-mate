@@ -34,14 +34,16 @@ serve(async (req) => {
 
     const systemPrompt = languagePrompts[language] || languagePrompts['en'];
 
-    const userPrompt = `Create an educational lesson about "${topic}" for ${grade} students. 
+    const userPrompt = `Create an educational lesson about "${topic}" for ${grade} students following NCERT curriculum standards.
     Respond in ${language} language.
     
-    IMPORTANT: Make the content appropriate for ${grade} level:
-    - For Grade 1-3: Use simple words, basic concepts, short sentences
-    - For Grade 4-6: Use moderate vocabulary, introduce more concepts
-    - For Grade 7-9: Use advanced vocabulary, deeper explanations
-    - For Grade 10-12: Use college-prep level content, complex reasoning
+    CRITICAL - Match content complexity to ${grade} NCERT level:
+    - Grade 1-2: Very basic concepts, single digit numbers, simple words (3-5 letters), picture book level
+    - Grade 3-4: Basic arithmetic, short paragraphs, simple sentences, foundational concepts
+    - Grade 5-6: Multi-digit numbers, longer paragraphs, vocabulary building, introductory science
+    - Grade 7-8: Pre-algebra, essay paragraphs, abstract thinking starts, detailed explanations
+    - Grade 9-10: Algebra/geometry, complex paragraphs, critical thinking, NCERT board exam prep
+    - Grade 11-12: Advanced mathematics/science, college-level vocabulary, analytical reasoning, JEE/NEET prep level
     
     Generate EXACTLY 6 lesson steps in JSON format:
     1. One explanation step (introduce the topic)
