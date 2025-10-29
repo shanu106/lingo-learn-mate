@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Volume2, Mic, MicOff, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 
 const Lesson = () => {
   const { id } = useParams();
@@ -17,6 +19,8 @@ const Lesson = () => {
   const [lessonData, setLessonData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userLanguage, setUserLanguage] = useState("en");
+  
+  const { supported: srSupported, startListening: startRec } = useSpeechRecognition();
 
   // Fetch user profile and lesson data
   useEffect(() => {
@@ -101,13 +105,8 @@ const Lesson = () => {
     }
   };
 
-  // Speech Recognition function with multilingual support
+  // Speech Recognition function with multilingual support (cross-browser)
   const startListening = () => {
-    if (!('webkitSpeechRecognition' in window)) {
-      toast.error("Speech recognition not supported in this browser");
-      return;
-    }
-
     const langMap: Record<string, string> = {
       'en': 'en-US',
       'hi': 'hi-IN',
@@ -117,33 +116,40 @@ const Lesson = () => {
       'ta': 'ta-IN',
     };
 
-    const recognition = new (window as any).webkitSpeechRecognition();
-    recognition.lang = langMap[userLanguage] || 'en-US';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    if (!srSupported) {
+      toast.error("Speech recognition not supported in this browser");
+      return;
+    }
 
-    recognition.onstart = () => {
-      setIsListening(true);
-      toast.info("Listening... Speak your answer");
-    };
+    const lang = langMap[userLanguage] || 'en-US';
 
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setUserAnswer(transcript);
-      checkAnswer(transcript);
-      setIsListening(false);
-    };
-
-    recognition.onerror = () => {
-      toast.error("Could not recognize speech. Please try again.");
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.start();
+    startRec(
+      lang,
+      (transcript) => {
+        setUserAnswer(transcript);
+        checkAnswer(transcript);
+        setIsListening(false);
+      },
+      () => {
+        setIsListening(true);
+        toast.info("Listening... Speak your answer");
+      },
+      () => {
+        setIsListening(false);
+      },
+      (err) => {
+        // Handle common error types with clearer messages
+        const messages: Record<string, string> = {
+          'not-allowed': 'Microphone permission denied. Please allow access and try again.',
+          'service-not-allowed': 'Speech service not allowed. Check browser settings.',
+          'no-speech': 'No speech detected. Please speak clearly and try again.',
+          'audio-capture': 'No microphone found or not accessible.',
+          'aborted': 'Listening aborted. Tap the mic to try again.',
+        };
+        toast.error(messages[err] || 'Could not recognize speech. Please try again.');
+        setIsListening(false);
+      }
+    );
   };
 
   const checkAnswer = async (answer: string) => {
