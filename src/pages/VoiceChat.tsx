@@ -1,0 +1,290 @@
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Mic, MicOff, Volume2, ArrowLeft, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+const VoiceChat = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [response, setResponse] = useState('');
+  const [userProfile, setUserProfile] = useState<{ preferred_language?: string; grade?: string } | null>(null);
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const synthRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  useEffect(() => {
+    fetchUserProfile();
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      navigate('/auth');
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (data) {
+      setUserProfile({
+        preferred_language: data.preferred_language,
+        grade: data.grade
+      });
+    }
+  };
+
+  const speakText = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = userProfile?.preferred_language || 'en-US';
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      
+      synthRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const stopSpeech = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await processAudio(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsListening(true);
+      stopSpeech();
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      toast({
+        title: 'Microphone Error',
+        description: 'Could not access microphone. Please check permissions.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isListening) {
+      mediaRecorderRef.current.stop();
+      setIsListening(false);
+    }
+  };
+
+  const processAudio = async (audioBlob: Blob) => {
+    setIsProcessing(true);
+    
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      
+      reader.onloadend = async () => {
+        const base64Audio = (reader.result as string).split(',')[1];
+        
+        // Transcribe audio
+        const { data: transcribeData, error: transcribeError } = await supabase.functions.invoke('transcribe-audio', {
+          body: { 
+            audio: base64Audio,
+            languageCode: userProfile?.preferred_language || 'en-US'
+          }
+        });
+
+        if (transcribeError) throw transcribeError;
+
+        const userText = transcribeData.text || '';
+        setTranscript(userText);
+        
+        if (!userText.trim()) {
+          toast({
+            title: 'No speech detected',
+            description: 'Please try speaking again.',
+            variant: 'destructive',
+          });
+          setIsProcessing(false);
+          return;
+        }
+
+        // Get AI response
+        const { data: chatData, error: chatError } = await supabase.functions.invoke('chat-tutor', {
+          body: {
+            message: userText,
+            language: userProfile?.preferred_language || 'en-US',
+            studentClass: userProfile?.grade || 'school'
+          }
+        });
+
+        if (chatError) throw chatError;
+
+        const aiReply = chatData.reply || 'I could not process that.';
+        setResponse(aiReply);
+        
+        // Speak the response
+        speakText(aiReply);
+      };
+    } catch (error) {
+      console.error('Error processing audio:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to process your question. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 p-4">
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Button>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            Voice Tutor
+          </h1>
+          <div className="w-20" />
+        </div>
+
+        {/* Main Card */}
+        <Card className="p-8 space-y-6 shadow-xl">
+          <div className="text-center space-y-2">
+            <h2 className="text-xl font-semibold">Ask Your Doubts</h2>
+            <p className="text-sm text-muted-foreground">
+              Speak in {userProfile?.preferred_language === 'hi-IN' ? 'Hindi' : 
+                       userProfile?.preferred_language === 'mr-IN' ? 'Marathi' :
+                       userProfile?.preferred_language === 'bn-IN' ? 'Bengali' :
+                       userProfile?.preferred_language === 'te-IN' ? 'Telugu' :
+                       userProfile?.preferred_language === 'ta-IN' ? 'Tamil' : 'English'} and get instant answers
+            </p>
+          </div>
+
+          {/* Voice Button */}
+          <div className="flex justify-center">
+            <Button
+              size="lg"
+              onClick={isListening ? stopRecording : startRecording}
+              disabled={isProcessing || isSpeaking}
+              className={`h-32 w-32 rounded-full shadow-2xl transition-all ${
+                isListening 
+                  ? 'bg-red-500 hover:bg-red-600 scale-110 animate-pulse' 
+                  : 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600'
+              }`}
+            >
+              {isProcessing ? (
+                <Loader2 className="w-12 h-12 animate-spin text-white" />
+              ) : isListening ? (
+                <MicOff className="w-12 h-12 text-white" />
+              ) : (
+                <Mic className="w-12 h-12 text-white" />
+              )}
+            </Button>
+          </div>
+
+          {/* Status */}
+          <div className="text-center">
+            {isListening && (
+              <p className="text-red-500 font-medium animate-pulse">Listening...</p>
+            )}
+            {isProcessing && (
+              <p className="text-blue-500 font-medium">Processing...</p>
+            )}
+            {isSpeaking && (
+              <div className="flex items-center justify-center gap-2 text-purple-500 font-medium">
+                <Volume2 className="w-5 h-5 animate-pulse" />
+                Speaking...
+              </div>
+            )}
+          </div>
+
+          {/* Transcript and Response */}
+          {(transcript || response) && (
+            <div className="space-y-4 pt-4 border-t">
+              {transcript && (
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm font-medium text-blue-900 mb-1">You asked:</p>
+                  <p className="text-blue-800">{transcript}</p>
+                </div>
+              )}
+              {response && (
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium text-purple-900">Tutor's answer:</p>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => speakText(response)}
+                      disabled={isSpeaking}
+                    >
+                      <Volume2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-purple-800">{response}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+
+        {/* Instructions */}
+        <Card className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+          <p className="text-sm text-center">
+            <span className="font-semibold">💡 Tip:</span> Tap the microphone to ask your question, then release when done. The tutor will answer immediately!
+          </p>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default VoiceChat;

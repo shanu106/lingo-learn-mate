@@ -169,23 +169,23 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Voice Practice CTA */}
+        {/* Voice Tutor CTA */}
         <Card className="p-8 bg-gradient-hero text-primary-foreground border-0 shadow-glow">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex-1">
-              <h2 className="text-2xl font-bold mb-2">Practice with Voice</h2>
+              <h2 className="text-2xl font-bold mb-2">Voice Tutor - Ask Your Doubts</h2>
               <p className="opacity-90">
-                Try our interactive voice lessons. Speak your answers and get instant feedback!
+                Get instant answers in your regional language. Speak naturally and solve your doubts with our AI tutor!
               </p>
             </div>
             <Button 
               size="lg" 
               variant="secondary" 
               className="h-14 px-8 bg-white/20 hover:bg-white/30 backdrop-blur-sm border-white/30 text-white"
-              onClick={() => navigate("/lesson/voice-practice")}
+              onClick={() => navigate("/voice-chat")}
             >
               <Mic className="w-5 h-5 mr-2" />
-              Start Voice Practice
+              Start Voice Tutor
             </Button>
           </div>
         </Card>
