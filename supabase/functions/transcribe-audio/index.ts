@@ -109,6 +109,21 @@ serve(async (req) => {
     const { access_token } = await tokenResponse.json();
 
     // Call Google Cloud Speech-to-Text API
+    const config: any = {
+      encoding: 'WEBM_OPUS',
+      sampleRateHertz: 48000,
+      languageCode: languageCode || 'en-US',
+      enableAutomaticPunctuation: true,
+      model: 'default',
+    };
+
+    // Only add alternative language codes for non-Indian languages
+    // For Indian languages, we want pure recognition without English fallback
+    const indianLanguages = ['hi-IN', 'mr-IN', 'bn-IN', 'te-IN', 'ta-IN', 'gu-IN', 'kn-IN', 'ml-IN', 'or-IN', 'pa-IN', 'ur-IN'];
+    if (!indianLanguages.includes(languageCode || '')) {
+      config.alternativeLanguageCodes = ['en-US'];
+    }
+
     const speechResponse = await fetch(
       `https://speech.googleapis.com/v1/speech:recognize`,
       {
@@ -118,12 +133,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          config: {
-            encoding: 'WEBM_OPUS',
-            sampleRateHertz: 48000,
-            languageCode: languageCode || 'en-US',
-            alternativeLanguageCodes: ['en-US'],
-          },
+          config,
           audio: {
             content: audio,
           },
