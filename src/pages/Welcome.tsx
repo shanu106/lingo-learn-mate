@@ -39,7 +39,7 @@ const Welcome = () => {
          
            <Button
             size="lg"
-            className="text-lg hidden h-14 px-8 bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
+            className="text-lg hidden md:flex h-14 px-8 bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
             
           >
             <a href="http://localhost:5173/">Convert Lectures into ASL Gestures</a>
