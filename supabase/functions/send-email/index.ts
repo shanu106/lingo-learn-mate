@@ -98,9 +98,9 @@ Deno.serve(async (req) => {
 
     console.log('Sending email via Resend')
     const { error } = await resend.emails.send({
-      from: 'LingoLearnMate <onboarding@resend.dev>',
+      from: 'AI-Alliance <onboarding@resend.dev>',
       to: [user.email],
-      subject: 'Verify your LingoLearnMate account',
+      subject: 'Verify your Vidhya account',
       html,
     })
     
