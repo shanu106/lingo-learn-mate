@@ -110,9 +110,10 @@ const Dashboard = () => {
         .select('score, total_questions, topic')
         .eq('user_id', user.id);
 
-      // Calculate statistics
-      const completedLessons = progressData?.filter(p => p.completed).length || 0;
-      const totalScore = assessmentData?.reduce((sum, a) => sum + a.score, 0) || 0;
+      // Calculate statistics based on assessment results
+      const uniqueTopics = Array.from(new Set((assessmentData || []).map(a => a.topic))).filter(Boolean);
+      const completedLessons = uniqueTopics.length;
+      const totalScore = (assessmentData || []).reduce((sum, a) => sum + (a.score || 0), 0);
       const points = totalScore * 10; // 10 points per correct answer
 
       setTotalLessonsCompleted(completedLessons);
@@ -131,33 +132,30 @@ const Dashboard = () => {
         { id: "social", name: "Social Studies", icon: "🌍", color: "bg-orange-500" },
       ];
 
-      // Calculate progress for each subject
+      // Calculate progress for each subject based on unique completed topics
       const subjectsWithProgress = subjectsList.map(subject => {
-        const subjectProgress = progressData?.filter(p => 
-          p.lesson_id?.toLowerCase().includes(subject.id.toLowerCase())
-        ) || [];
-        
-        const subjectAssessments = assessmentData?.filter(a => 
-          a.topic?.toLowerCase().includes(subject.id.toLowerCase())
-        ) || [];
+        const subjectCompleted = uniqueTopics.filter(t =>
+          (t as string).toLowerCase() === subject.id.toLowerCase()
+        ).length;
 
-        const completed = subjectProgress.filter(p => p.completed).length;
-        const total = Math.max(subjectProgress.length, 10); // Assume at least 10 lessons per subject
-        const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+        const total = 10; // Target lessons per subject
+        const progress = total > 0 ? Math.round((subjectCompleted / total) * 100) : 0;
 
         return {
           ...subject,
           progress,
-          lessonsCompleted: completed,
+          lessonsCompleted: subjectCompleted,
           totalLessons: total,
-        };
+        } as SubjectProgress;
       });
 
       setSubjects(subjectsWithProgress);
 
-      // Calculate overall progress
-      const avgProgress = subjectsWithProgress.reduce((sum, s) => sum + s.progress, 0) / subjectsWithProgress.length;
-      setOverallProgress(Math.round(avgProgress));
+      // Calculate overall progress as average of subjects
+      const avgProgress = subjectsWithProgress.length
+        ? Math.round(subjectsWithProgress.reduce((sum, s) => sum + s.progress, 0) / subjectsWithProgress.length)
+        : 0;
+      setOverallProgress(avgProgress);
 
     } catch (error) {
       console.error('Error fetching profile:', error);
