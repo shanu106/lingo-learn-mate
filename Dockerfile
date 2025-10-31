@@ -31,4 +31,4 @@ RUN npm ci --only=production
 EXPOSE 8080
 
 # Start the Express server
-CMD ["node", "--loader", "ts-node/esm", "server.ts"]
+CMD ["node", "server.js"]
