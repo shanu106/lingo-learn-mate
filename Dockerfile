@@ -1,5 +1,4 @@
-# Build stage
-FROM node:18-alpine AS builder
+FROM node:18-alpine
 
 WORKDIR /app
 
@@ -25,17 +24,11 @@ ENV VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID
 # Build the app
 RUN npm run build
 
-# Production stage
-FROM nginx:alpine
+# Remove dev dependencies and install only production dependencies
+RUN npm ci --only=production
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Expose port (Cloud Run will set PORT env variable)
+EXPOSE 8080
 
-# Copy built files from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Expose port 80
-EXPOSE 80
-
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Start the Express server
+CMD ["node", "--loader", "ts-node/esm", "server.ts"]
