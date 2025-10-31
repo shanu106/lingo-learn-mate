@@ -35,14 +35,22 @@ const Welcome = () => {
         {/* Hero Section */}
         
         <div className="right-10 absolute top-10">
-          <p className="text-lg text-center"> Hearing issues?</p>
+          <p className="text-lg text-center md:flex justify-center hidden"> Hearing issues?</p>
          
            <Button
             size="lg"
-            className="text-lg h-14 px-8 bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
+            className="text-lg hidden h-14 px-8 bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
             
           >
             <a href="http://localhost:5173/">Convert Lectures into ASL Gestures</a>
+           
+          </Button>
+          <Button
+            size="lg"
+            className="text-sm md:hidden h-10 px-4 -top-5 -right-8 absolute bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
+            
+          >
+            <a href="http://localhost:5173/"> Hearing Disablity ?</a>
            
           </Button>
         </div>
