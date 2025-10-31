@@ -45,6 +45,12 @@ serve(async (req) => {
     - Grade 9-10: Algebra/geometry, complex paragraphs, critical thinking, NCERT board exam prep
     - Grade 11-12: Advanced mathematics/science, college-level vocabulary, analytical reasoning, JEE/NEET prep level
     
+    IMPORTANT FOR IMAGE-BASED QUESTIONS:
+    - If a question requires looking at a picture (e.g., "look at the picture", "how many birds"), include "imagePrompt" field with detailed description
+    - ONLY add imagePrompt if visual context is truly needed
+    - If you cannot provide good image prompt, rephrase question to not require image
+    - Example imagePrompt: "A colorful illustration showing 5 red birds sitting on a tree branch against blue sky"
+    
     Generate EXACTLY 6 lesson steps in JSON format:
     1. One explanation step (introduce the topic)
     2. One reading step (detailed content with examples)
@@ -72,7 +78,8 @@ serve(async (req) => {
           "type": "question",
           "content": "question context in ${language}",
           "question": "simple question about the reading appropriate for ${grade}",
-          "answer": "correct answer"
+          "answer": "correct answer",
+          "imagePrompt": "optional: detailed description for image generation (only if question needs visual)"
         },
         {
           "type": "reading",
@@ -134,7 +141,7 @@ serve(async (req) => {
 
     const data = await response.json();
     const content = data.choices[0].message.content;
-    console.log('AI response received');
+    console.log('AI response received, processing images...');
     
     let lessonData;
     try {
@@ -142,6 +149,51 @@ serve(async (req) => {
     } catch (e) {
       console.error('Failed to parse AI response:', content);
       throw new Error('Invalid AI response format');
+    }
+
+    // Generate images for steps that need them
+    if (lessonData.steps && Array.isArray(lessonData.steps)) {
+      for (let i = 0; i < lessonData.steps.length; i++) {
+        const step = lessonData.steps[i];
+        if (step.imagePrompt && step.imagePrompt.trim()) {
+          try {
+            console.log(`Generating image for step ${i + 1}: ${step.imagePrompt}`);
+            
+            const imageResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-2.5-flash-image-preview',
+                messages: [
+                  {
+                    role: 'user',
+                    content: `Generate an educational image for ${grade} student: ${step.imagePrompt}`
+                  }
+                ],
+                modalities: ['image', 'text']
+              }),
+            });
+
+            if (imageResponse.ok) {
+              const imageData = await imageResponse.json();
+              const imageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+              
+              if (imageUrl) {
+                lessonData.steps[i].imageUrl = imageUrl;
+                console.log(`Image generated successfully for step ${i + 1}`);
+              }
+            } else {
+              console.error(`Failed to generate image for step ${i + 1}:`, await imageResponse.text());
+            }
+          } catch (imageError) {
+            console.error(`Error generating image for step ${i + 1}:`, imageError);
+            // Continue without image if generation fails
+          }
+        }
+      }
     }
 
     return new Response(JSON.stringify(lessonData), {

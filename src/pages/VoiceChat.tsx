@@ -117,59 +117,82 @@ const VoiceChat = () => {
 
   const processAudio = async (audioBlob: Blob) => {
     setIsProcessing(true);
+    console.log('Processing audio, blob size:', audioBlob.size);
     
     try {
       const reader = new FileReader();
       reader.readAsDataURL(audioBlob);
       
       reader.onloadend = async () => {
-        const base64Audio = (reader.result as string).split(',')[1];
-        
-        // Transcribe audio
-        const { data: transcribeData, error: transcribeError } = await supabase.functions.invoke('transcribe-audio', {
-          body: { 
-            audio: base64Audio,
-            languageCode: userProfile?.preferred_language || 'en-US'
-          }
-        });
-
-        if (transcribeError) throw transcribeError;
-
-        const userText = transcribeData.text || '';
-        setTranscript(userText);
-        
-        if (!userText.trim()) {
-          toast({
-            title: 'No speech detected',
-            description: 'Please try speaking again.',
-            variant: 'destructive',
+        try {
+          const base64Audio = (reader.result as string).split(',')[1];
+          console.log('Base64 audio prepared, length:', base64Audio.length);
+          
+          // Transcribe audio
+          console.log('Calling transcribe-audio function...');
+          const { data: transcribeData, error: transcribeError } = await supabase.functions.invoke('transcribe-audio', {
+            body: { 
+              audio: base64Audio,
+              languageCode: userProfile?.preferred_language || 'en-US'
+            }
           });
-          setIsProcessing(false);
-          return;
-        }
 
-        // Get AI response
-        const { data: chatData, error: chatError } = await supabase.functions.invoke('chat-tutor', {
-          body: {
-            message: userText,
-            language: userProfile?.preferred_language || 'en-US',
-            studentClass: userProfile?.grade || 'school'
+          if (transcribeError) {
+            console.error('Transcribe error:', transcribeError);
+            throw new Error(`Transcription failed: ${transcribeError.message}`);
           }
-        });
 
-        if (chatError) throw chatError;
+          console.log('Transcription response:', transcribeData);
+          const userText = transcribeData?.text || '';
+          setTranscript(userText);
+          
+          if (!userText.trim()) {
+            toast({
+              title: 'No speech detected',
+              description: 'Please try speaking clearly and try again.',
+              variant: 'destructive',
+            });
+            setIsProcessing(false);
+            return;
+          }
 
-        const aiReply = chatData.reply || 'I could not process that.';
-        setResponse(aiReply);
-        
-        // Speak the response
-        speakText(aiReply);
+          // Get AI response
+          console.log('Calling chat-tutor function with message:', userText);
+          const { data: chatData, error: chatError } = await supabase.functions.invoke('chat-tutor', {
+            body: {
+              message: userText,
+              language: userProfile?.preferred_language || 'en-US',
+              studentClass: userProfile?.grade || 'Grade 1'
+            }
+          });
+
+          if (chatError) {
+            console.error('Chat error:', chatError);
+            throw new Error(`Chat failed: ${chatError.message}`);
+          }
+
+          console.log('Chat response:', chatData);
+          const aiReply = chatData?.reply || 'I could not process that. Please try again.';
+          setResponse(aiReply);
+          
+          // Speak the response
+          speakText(aiReply);
+        } catch (innerError) {
+          console.error('Inner error processing audio:', innerError);
+          throw innerError;
+        }
+      };
+
+      reader.onerror = () => {
+        console.error('FileReader error');
+        throw new Error('Failed to read audio file');
       };
     } catch (error) {
       console.error('Error processing audio:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast({
-        title: 'Error',
-        description: 'Failed to process your question. Please try again.',
+        title: 'Processing Error',
+        description: `Failed to process your question: ${errorMessage}. Please check your internet connection and try again.`,
         variant: 'destructive',
       });
     } finally {

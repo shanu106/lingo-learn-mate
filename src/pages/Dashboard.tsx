@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Mic, Trophy, Settings, TrendingUp } from "lucide-react";
+import { BookOpen, Mic, Trophy, Settings, TrendingUp, Volume2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -169,26 +169,38 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Voice Tutor CTA */}
-        <Card className="p-8 bg-gradient-hero text-primary-foreground border-0 shadow-glow">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold mb-2">Voice Tutor - Ask Your Doubts</h2>
-              <p className="opacity-90">
-                Get instant answers in your regional language. Speak naturally and solve your doubts with our AI tutor!
-              </p>
+        {/* Quick Actions */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card 
+            className="p-6 bg-gradient-hero text-primary-foreground border-0 shadow-glow cursor-pointer hover:shadow-xl transition-all"
+            onClick={() => navigate('/voice-chat')}
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/20 rounded-full backdrop-blur-sm">
+                <Volume2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg">Voice Tutor</h3>
+                <p className="text-sm opacity-90">Ask questions and get instant answers</p>
+              </div>
             </div>
-            <Button 
-              size="lg" 
-              variant="secondary" 
-              className="h-14 px-8 bg-white/20 hover:bg-white/30 backdrop-blur-sm border-white/30 text-white"
-              onClick={() => navigate("/voice-chat")}
-            >
-              <Mic className="w-5 h-5 mr-2" />
-              Start Voice Tutor
-            </Button>
-          </div>
-        </Card>
+          </Card>
+
+          <Card 
+            className="p-6 bg-gradient-secondary text-secondary-foreground border-0 cursor-pointer hover:shadow-xl transition-all"
+            onClick={() => navigate('/results')}
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/20 rounded-full backdrop-blur-sm">
+                <Trophy className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg">My Results</h3>
+                <p className="text-sm opacity-90">View your assessment history</p>
+              </div>
+            </div>
+          </Card>
+        </div>
       </main>
     </div>
   );

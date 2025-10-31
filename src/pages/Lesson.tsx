@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Volume2, Mic, MicOff, CheckCircle, XCircle } from "lucide-react";
+import { ArrowLeft, Volume2, Mic, MicOff, CheckCircle, XCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 const Lesson = () => {
@@ -21,6 +21,8 @@ const Lesson = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [score, setScore] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
+  const [lessonComplete, setLessonComplete] = useState(false);
+  const [isSavingResult, setIsSavingResult] = useState(false);
 
   // Fetch user profile and lesson data
   useEffect(() => {
@@ -243,22 +245,44 @@ const Lesson = () => {
     }
   };
 
-  const handleNext = () => {
+  const saveResult = async () => {
+    if (isSavingResult || !lessonData || !userGrade) return;
+    
+    setIsSavingResult(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('assessment_results')
+        .insert({
+          user_id: user.id,
+          topic: id || 'Unknown',
+          grade: userGrade,
+          score,
+          total_questions: totalQuestions,
+          language: userLanguage
+        });
+
+      if (error) {
+        console.error('Error saving result:', error);
+      }
+    } catch (error) {
+      console.error('Error saving result:', error);
+    } finally {
+      setIsSavingResult(false);
+    }
+  };
+
+  const handleNext = async () => {
     if (currentStep < lessonData.steps.length - 1) {
       setCurrentStep(currentStep + 1);
       setUserAnswer("");
       setIsCorrect(null);
     } else {
-      // Show final results
-      const percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
-      const resultMessage = percentage >= 70 
-        ? `Excellent! You scored ${score}/${totalQuestions} (${percentage.toFixed(0)}%)! 🌟`
-        : percentage >= 50
-        ? `Good job! You scored ${score}/${totalQuestions} (${percentage.toFixed(0)}%). Keep practicing! 📚`
-        : `You scored ${score}/${totalQuestions} (${percentage.toFixed(0)}%). Let's try again! 💪`;
-      
-      toast.success(resultMessage, { duration: 5000 });
-      setTimeout(() => navigate("/dashboard"), 3000);
+      // Save result and show completion
+      await saveResult();
+      setLessonComplete(true);
     }
   };
 
@@ -267,6 +291,36 @@ const Lesson = () => {
     setIsCorrect(null);
     handleNext();
   };
+
+  if (lessonComplete) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-accent to-background flex items-center justify-center p-4">
+        <Card className="p-8 max-w-md w-full text-center space-y-6 shadow-lg-custom">
+          <div className="w-20 h-20 mx-auto bg-gradient-primary rounded-full flex items-center justify-center">
+            <CheckCircle2 className="w-12 h-12 text-primary-foreground" />
+          </div>
+          <h1 className="text-3xl font-bold">Lesson Complete!</h1>
+          <div className="space-y-2">
+            <p className="text-4xl font-bold text-primary">
+              {score} / {totalQuestions}
+            </p>
+            <p className="text-muted-foreground">
+              {score === totalQuestions ? 'Perfect Score! 🎉' : 
+               score >= totalQuestions * 0.7 ? 'Great Job! 👏' : 
+               'Keep Practicing! 💪'}
+            </p>
+          </div>
+          <Button
+            onClick={() => navigate('/dashboard')}
+            className="w-full bg-gradient-primary"
+            size="lg"
+          >
+            Back to Dashboard
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent to-background">
@@ -323,6 +377,16 @@ const Lesson = () => {
             <div className="text-lg text-muted-foreground leading-relaxed whitespace-pre-line">
               {currentContent.content}
             </div>
+            {/* Display image if available */}
+            {currentContent.imageUrl && (
+              <div className="mt-6 rounded-lg overflow-hidden border-2 border-muted">
+                <img 
+                  src={currentContent.imageUrl} 
+                  alt="Lesson illustration" 
+                  className="w-full h-auto"
+                />
+              </div>
+            )}
           </div>
 
           {/* Answer Section (for questions) */}

@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      assessment_results: {
+        Row: {
+          completed_at: string | null
+          grade: string
+          id: string
+          language: string | null
+          score: number
+          topic: string
+          total_questions: number
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          grade: string
+          id?: string
+          language?: string | null
+          score: number
+          topic: string
+          total_questions: number
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          grade?: string
+          id?: string
+          language?: string | null
+          score?: number
+          topic?: string
+          total_questions?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       lessons: {
         Row: {
           content: Json

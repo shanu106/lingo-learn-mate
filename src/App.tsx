@@ -8,6 +8,7 @@ import ProfileSetup from "./pages/ProfileSetup";
 import Dashboard from "./pages/Dashboard";
 import Lesson from "./pages/Lesson";
 import VoiceChat from "./pages/VoiceChat";
+import Results from "./pages/Results";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 import { Auth } from "./components/Auth";
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/lesson/:id" element={<Lesson />} />
           <Route path="/voice-chat" element={<VoiceChat />} />
+          <Route path="/results" element={<Results />} />
           <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
