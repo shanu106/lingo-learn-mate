@@ -38,13 +38,10 @@ export const AdminSignup = () => {
       if (error) throw error;
 
       if (data.user) {
-        // Add admin role to user_roles table
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: data.user.id,
-            role: "admin"
-          });
+        // Add admin role using secure function
+        const { error: roleError } = await supabase.rpc('assign_admin_role', {
+          _user_id: data.user.id
+        });
 
         if (roleError) {
           console.error("Error assigning admin role:", roleError);
