@@ -88,22 +88,34 @@ const Welcome = () => {
         </div>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button
-            size="lg"
-            className="text-lg h-14 px-8 bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
-            onClick={() => navigate("/auth")}
-          >
-            Get Started
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            className="text-lg h-14 px-8 border-2"
-            onClick={() => navigate("/admin")}
-          >
-            Admin Login
-          </Button>
+        <div className="flex flex-col gap-4 items-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button
+              size="lg"
+              className="text-lg h-14 px-8 bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
+              onClick={() => navigate("/auth")}
+            >
+              Get Started
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="text-lg h-14 px-8 border-2"
+              onClick={() => navigate("/admin")}
+            >
+              Admin Login
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Need admin access?{" "}
+            <Button
+              variant="link"
+              onClick={() => navigate("/admin-signup")}
+              className="p-0 h-auto text-primary font-semibold"
+            >
+              Create Admin Account
+            </Button>
+          </p>
         </div>
 
         {/* Info Text */}
