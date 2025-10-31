@@ -269,6 +269,7 @@ const Lesson = () => {
         return;
       }
 
+      // Save assessment result
       const { error } = await supabase
         .from('assessment_results')
         .insert({
@@ -285,6 +286,44 @@ const Lesson = () => {
       } else {
         console.log('Result saved successfully:', { score, totalQuestions });
       }
+
+      // Update or create student_progress record to mark lesson as completed
+      const lessonId = `${id}-${userGrade}`;
+      
+      // Check if progress record exists
+      const { data: progressData } = await supabase
+        .from('student_progress')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('lesson_id', lessonId)
+        .maybeSingle();
+
+      if (progressData) {
+        // Update existing progress
+        await supabase
+          .from('student_progress')
+          .update({
+            completed: true,
+            score,
+            attempts: 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', progressData.id);
+      } else {
+        // Create new progress record
+        await supabase
+          .from('student_progress')
+          .insert({
+            user_id: user.id,
+            lesson_id: lessonId,
+            completed: true,
+            score,
+            attempts: 1,
+            current_step: lessonData.steps.length
+          });
+      }
+      
+      console.log('Progress updated successfully');
     } catch (error) {
       console.error('Error saving result:', error);
     } finally {
