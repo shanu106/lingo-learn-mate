@@ -39,7 +39,7 @@ export const AdminSignup = () => {
 
       if (data.user) {
         setEmailSent(true);
-        toast.success("Admin account created! Please check your email to verify your account.");
+        toast.success("Admin account created! Please verify your email to complete registration.");
       }
     } catch (error: any) {
       console.error("Admin signup error:", error);
@@ -59,7 +59,7 @@ export const AdminSignup = () => {
           <h1 className="text-2xl font-bold mb-4">Verify Your Email</h1>
           <p className="text-muted-foreground mb-6">
             We've sent a verification link to <strong>{email}</strong>. 
-            Please check your inbox and click the link to activate your admin account.
+            Please check your inbox and click the link to activate your admin account. Your admin privileges will be granted upon verification.
           </p>
           <Button
             variant="outline"
