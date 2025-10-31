@@ -38,18 +38,8 @@ export const AdminSignup = () => {
       if (error) throw error;
 
       if (data.user) {
-        // Add admin role using secure function
-        const { error: roleError } = await supabase.rpc('assign_admin_role', {
-          _user_id: data.user.id
-        });
-
-        if (roleError) {
-          console.error("Error assigning admin role:", roleError);
-          toast.error("Account created but failed to assign admin role. Please contact support.");
-        } else {
-          setEmailSent(true);
-          toast.success("Admin account created! Please check your email to verify.");
-        }
+        setEmailSent(true);
+        toast.success("Admin account created! Please check your email to verify your account.");
       }
     } catch (error: any) {
       console.error("Admin signup error:", error);
