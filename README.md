@@ -1,18 +1,12 @@
-# Welcome to your Lovable project
+# Welcome to AI Alliance's Vidhya project
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/7adf083a-db30-4c2c-9e54-cf8bda0ac266
+
 
 ## How can I edit this code?
 
 There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/7adf083a-db30-4c2c-9e54-cf8bda0ac266) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
 
 **Use your preferred IDE**
 
@@ -60,14 +54,14 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
-## How can I deploy this project?
+## Meet the Developers?
 
-Simply open [Lovable](https://lovable.dev/projects/7adf083a-db30-4c2c-9e54-cf8bda0ac266) and click on Share -> Publish.
+This project is Made with love :
 
-## Can I connect a custom domain to my Lovable project?
+-  Team - AI Alliance
+- Shahnawaj Rangrej - Project Leader
+- Mohammad Shadab Khan - ML workflows
+- Aqsa Mansuri - Backend Developer
+- Shagufta Behlim - Frontend Developer
 
-Yes, you can!
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
