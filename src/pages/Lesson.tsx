@@ -377,6 +377,29 @@ const Lesson = () => {
             <div className="text-lg text-muted-foreground leading-relaxed whitespace-pre-line">
               {currentContent.content}
             </div>
+            
+            {/* Display MCQ options if available */}
+            {currentContent.type === "question" && currentContent.options && Array.isArray(currentContent.options) && (
+              <div className="mt-6 space-y-3">
+                <p className="font-medium text-sm text-muted-foreground">Choose the correct answer:</p>
+                {currentContent.options.map((option: string, index: number) => (
+                  <Button
+                    key={index}
+                    variant={userAnswer === option ? "default" : "outline"}
+                    className="w-full justify-start text-left h-auto py-4 px-6"
+                    onClick={() => {
+                      setUserAnswer(option);
+                      checkAnswer(option);
+                    }}
+                    disabled={isCorrect !== null}
+                  >
+                    <span className="font-semibold mr-3">{String.fromCharCode(65 + index)}.</span>
+                    <span>{option}</span>
+                  </Button>
+                ))}
+              </div>
+            )}
+            
             {/* Display image if available */}
             {currentContent.imageUrl && (
               <div className="mt-6 rounded-lg overflow-hidden border-2 border-muted">
@@ -389,15 +412,15 @@ const Lesson = () => {
             )}
           </div>
 
-          {/* Answer Section (for questions) */}
-          {currentContent.type === "question" && (
+          {/* Answer Section (for questions) - Only show if no options */}
+          {currentContent.type === "question" && !currentContent.options && (
             <div className="space-y-6">
               {/* Voice Input */}
               <div className="flex flex-col items-center gap-4">
                 <Button
                   size="lg"
                   onClick={startListening}
-                  disabled={isListening}
+                  disabled={isListening || isSpeaking || isCorrect !== null}
                   className={`h-20 w-20 rounded-full ${
                     isListening 
                       ? "bg-destructive hover:bg-destructive animate-pulse" 
@@ -411,7 +434,7 @@ const Lesson = () => {
                   )}
                 </Button>
                 <p className="text-sm text-muted-foreground text-center">
-                  {isListening ? "Listening..." : "Tap to speak your answer"}
+                  {isListening ? "Listening..." : isSpeaking ? "Tutor is speaking..." : "Tap to speak your answer"}
                 </p>
               </div>
 
@@ -423,6 +446,7 @@ const Lesson = () => {
                     value={userAnswer}
                     onChange={(e) => setUserAnswer(e.target.value)}
                     placeholder="Type your answer here..."
+                    disabled={isSpeaking || isCorrect !== null}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && userAnswer.trim()) {
                         checkAnswer(userAnswer);
@@ -431,7 +455,7 @@ const Lesson = () => {
                   />
                   <Button 
                     onClick={() => checkAnswer(userAnswer)}
-                    disabled={!userAnswer.trim()}
+                    disabled={!userAnswer.trim() || isSpeaking || isCorrect !== null}
                   >
                     Submit
                   </Button>

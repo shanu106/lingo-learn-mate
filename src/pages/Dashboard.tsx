@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Mic, Trophy, Settings, TrendingUp, Volume2 } from "lucide-react";
+import { BookOpen, Mic, Trophy, Settings, TrendingUp, Volume2, Award, Clock, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -13,15 +13,65 @@ interface StudentProfile {
   language: string;
 }
 
+interface SubjectProgress {
+  id: string;
+  name: string;
+  icon: string;
+  progress: number;
+  lessonsCompleted: number;
+  totalLessons: number;
+  color: string;
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [progress] = useState(35); // Mock progress
+  const [overallProgress, setOverallProgress] = useState(0);
+  const [totalLessonsCompleted, setTotalLessonsCompleted] = useState(0);
+  const [totalPoints, setTotalPoints] = useState(0);
+  const [subjects, setSubjects] = useState<SubjectProgress[]>([]);
+  const [currentLevel, setCurrentLevel] = useState(1);
+  const [streak, setStreak] = useState(0);
 
   useEffect(() => {
     checkProfile();
   }, []);
+
+  const calculateLevel = (points: number) => {
+    return Math.floor(points / 100) + 1;
+  };
+
+  const calculateStreak = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('assessment_results')
+      .select('completed_at')
+      .eq('user_id', userId)
+      .order('completed_at', { ascending: false })
+      .limit(30);
+
+    if (error || !data || data.length === 0) return 0;
+
+    let currentStreak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < data.length; i++) {
+      const completedDate = new Date(data[i].completed_at);
+      completedDate.setHours(0, 0, 0, 0);
+      
+      const expectedDate = new Date(today);
+      expectedDate.setDate(today.getDate() - i);
+      
+      if (completedDate.getTime() === expectedDate.getTime()) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+
+    return currentStreak;
+  };
 
   const checkProfile = async () => {
     try {
@@ -47,6 +97,68 @@ const Dashboard = () => {
         grade: profileData.grade,
         language: profileData.preferred_language,
       });
+
+      // Fetch student progress data
+      const { data: progressData } = await supabase
+        .from('student_progress')
+        .select('*')
+        .eq('user_id', user.id);
+
+      // Fetch assessment results to calculate points
+      const { data: assessmentData } = await supabase
+        .from('assessment_results')
+        .select('score, total_questions, topic')
+        .eq('user_id', user.id);
+
+      // Calculate statistics
+      const completedLessons = progressData?.filter(p => p.completed).length || 0;
+      const totalScore = assessmentData?.reduce((sum, a) => sum + a.score, 0) || 0;
+      const points = totalScore * 10; // 10 points per correct answer
+
+      setTotalLessonsCompleted(completedLessons);
+      setTotalPoints(points);
+      setCurrentLevel(calculateLevel(points));
+
+      // Calculate streak
+      const streakDays = await calculateStreak(user.id);
+      setStreak(streakDays);
+
+      // Define subjects with their data
+      const subjectsList = [
+        { id: "math", name: "Mathematics", icon: "📐", color: "bg-blue-500" },
+        { id: "science", name: "Science", icon: "🔬", color: "bg-green-500" },
+        { id: "english", name: "English", icon: "📚", color: "bg-purple-500" },
+        { id: "social", name: "Social Studies", icon: "🌍", color: "bg-orange-500" },
+      ];
+
+      // Calculate progress for each subject
+      const subjectsWithProgress = subjectsList.map(subject => {
+        const subjectProgress = progressData?.filter(p => 
+          p.lesson_id?.toLowerCase().includes(subject.id.toLowerCase())
+        ) || [];
+        
+        const subjectAssessments = assessmentData?.filter(a => 
+          a.topic?.toLowerCase().includes(subject.id.toLowerCase())
+        ) || [];
+
+        const completed = subjectProgress.filter(p => p.completed).length;
+        const total = Math.max(subjectProgress.length, 10); // Assume at least 10 lessons per subject
+        const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        return {
+          ...subject,
+          progress,
+          lessonsCompleted: completed,
+          totalLessons: total,
+        };
+      });
+
+      setSubjects(subjectsWithProgress);
+
+      // Calculate overall progress
+      const avgProgress = subjectsWithProgress.reduce((sum, s) => sum + s.progress, 0) / subjectsWithProgress.length;
+      setOverallProgress(Math.round(avgProgress));
+
     } catch (error) {
       console.error('Error fetching profile:', error);
       toast.error('Failed to load profile');
@@ -58,111 +170,151 @@ const Dashboard = () => {
 
   if (loading || !profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-accent to-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading...</p>
+          <p className="text-muted-foreground">Loading your dashboard...</p>
         </div>
       </div>
     );
   }
 
-  const subjects = [
-    { id: "math", name: "Mathematics", icon: "📐", progress: 45, color: "bg-blue-500" },
-    { id: "science", name: "Science", icon: "🔬", progress: 30, color: "bg-green-500" },
-    { id: "english", name: "English", icon: "📚", progress: 25, color: "bg-purple-500" },
-    { id: "social", name: "Social Studies", icon: "🌍", progress: 40, color: "bg-orange-500" },
-  ];
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent to-background">
       {/* Header */}
-      <header className="bg-card border-b shadow-sm sticky top-0 z-10">
+      <header className="bg-card/80 backdrop-blur-sm border-b shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-primary-foreground" />
+            <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center shadow-lg">
+              <BookOpen className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-bold text-lg">Vidya</h1>
-              <p className="text-xs text-muted-foreground">Welcome back, {profile.name}!</p>
+              <h1 className="font-bold text-xl bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                Vidya
+              </h1>
+              <p className="text-sm text-muted-foreground">Welcome back, {profile.name}! 👋</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => navigate("/profile-setup")}>
-            <Settings className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-primary/10 rounded-full">
+              <Award className="w-5 h-5 text-primary" />
+              <span className="font-bold text-primary">Level {currentLevel}</span>
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => navigate("/profile-setup")}>
+              <Settings className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="p-6 border-2 hover:border-primary/50 transition-colors">
-            <div className="flex items-center justify-between">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="p-6 border-2 hover:border-primary/50 hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-card to-card/50">
+            <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-sm text-muted-foreground">Overall Progress</p>
-                <p className="text-3xl font-bold">{progress}%</p>
+                <p className="text-sm text-muted-foreground font-medium">Overall Progress</p>
+                <p className="text-3xl font-bold mt-1">{overallProgress}%</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-primary-foreground" />
+              <div className="w-14 h-14 rounded-full bg-gradient-primary flex items-center justify-center shadow-lg">
+                <TrendingUp className="w-7 h-7 text-primary-foreground" />
               </div>
             </div>
-            <Progress value={progress} className="mt-4" />
+            <Progress value={overallProgress} className="h-2.5" />
           </Card>
 
-          <Card className="p-6 border-2 hover:border-primary/50 transition-colors">
+          <Card className="p-6 border-2 hover:border-primary/50 hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-card to-card/50">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Lessons Completed</p>
-                <p className="text-3xl font-bold">12</p>
+                <p className="text-sm text-muted-foreground font-medium">Lessons Completed</p>
+                <p className="text-3xl font-bold mt-1">{totalLessonsCompleted}</p>
+                <p className="text-xs text-muted-foreground mt-1">Keep learning!</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-gradient-secondary flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-secondary-foreground" />
+              <div className="w-14 h-14 rounded-full bg-gradient-secondary flex items-center justify-center shadow-lg">
+                <BookOpen className="w-7 h-7 text-secondary-foreground" />
               </div>
             </div>
           </Card>
 
-          <Card className="p-6 border-2 hover:border-primary/50 transition-colors">
+          <Card className="p-6 border-2 hover:border-primary/50 hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-card to-card/50">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Points Earned</p>
-                <p className="text-3xl font-bold">450</p>
+                <p className="text-sm text-muted-foreground font-medium">Points Earned</p>
+                <p className="text-3xl font-bold mt-1">{totalPoints}</p>
+                <p className="text-xs text-muted-foreground mt-1">Level {currentLevel}</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-success flex items-center justify-center">
-                <Trophy className="w-6 h-6 text-success-foreground" />
+              <div className="w-14 h-14 rounded-full bg-success flex items-center justify-center shadow-lg">
+                <Trophy className="w-7 h-7 text-success-foreground" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 border-2 hover:border-primary/50 hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-card to-card/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">Learning Streak</p>
+                <p className="text-3xl font-bold mt-1">{streak}</p>
+                <p className="text-xs text-muted-foreground mt-1">days in a row 🔥</p>
+              </div>
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg">
+                <Clock className="w-7 h-7 text-white" />
               </div>
             </div>
           </Card>
         </div>
 
+        {/* Level Progress */}
+        <Card className="p-6 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-2 border-primary/20">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center shadow-lg">
+                <Target className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg">Level {currentLevel}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {totalPoints % 100} / 100 points to Level {currentLevel + 1}
+                </p>
+              </div>
+            </div>
+            <Award className="w-10 h-10 text-primary animate-pulse" />
+          </div>
+          <Progress value={(totalPoints % 100)} className="h-3" />
+        </Card>
+
         {/* Subjects */}
         <div>
-          <h2 className="text-2xl font-bold mb-4">Your Subjects</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold">Your Subjects</h2>
+            <p className="text-sm text-muted-foreground">{profile.grade}</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {subjects.map((subject) => (
               <Card
                 key={subject.id}
-                className="p-6 cursor-pointer hover:shadow-lg-custom transition-all duration-300 border-2 hover:border-primary/50"
+                className="p-6 cursor-pointer hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 border-2 hover:border-primary/50 bg-gradient-to-br from-card to-card/50"
                 onClick={() => navigate(`/lesson/${subject.id}`)}
               >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="text-4xl">{subject.icon}</div>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="text-5xl">{subject.icon}</div>
                     <div>
-                      <h3 className="font-semibold text-lg">{subject.name}</h3>
-                      <p className="text-sm text-muted-foreground">{profile.grade}</p>
+                      <h3 className="font-bold text-xl">{subject.name}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {subject.lessonsCompleted} of {subject.totalLessons} lessons
+                      </p>
                     </div>
                   </div>
-                  <Button size="sm" className="bg-gradient-primary">
+                  <Button size="sm" className="bg-gradient-primary shadow-lg hover:shadow-xl transition-all">
                     Continue
                   </Button>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="font-medium">{subject.progress}%</span>
+                    <span className="text-muted-foreground font-medium">Progress</span>
+                    <span className="font-bold text-primary">{subject.progress}%</span>
                   </div>
-                  <Progress value={subject.progress} className="h-2" />
+                  <Progress value={subject.progress} className="h-3" />
                 </div>
               </Card>
             ))}
@@ -170,32 +322,32 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2">
           <Card 
-            className="p-6 bg-gradient-hero text-primary-foreground border-0 shadow-glow cursor-pointer hover:shadow-xl transition-all"
+            className="p-8 bg-gradient-hero text-primary-foreground border-0 shadow-glow cursor-pointer hover:shadow-2xl hover:scale-[1.02] transition-all"
             onClick={() => navigate('/voice-chat')}
           >
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-white/20 rounded-full backdrop-blur-sm">
-                <Volume2 className="w-6 h-6" />
+              <div className="p-4 bg-white/20 rounded-full backdrop-blur-sm shadow-lg">
+                <Volume2 className="w-8 h-8" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-lg">Voice Tutor</h3>
+                <h3 className="font-bold text-xl mb-1">Voice Tutor</h3>
                 <p className="text-sm opacity-90">Ask questions and get instant answers</p>
               </div>
             </div>
           </Card>
 
           <Card 
-            className="p-6 bg-gradient-secondary text-secondary-foreground border-0 cursor-pointer hover:shadow-xl transition-all"
+            className="p-8 bg-gradient-secondary text-secondary-foreground border-0 cursor-pointer hover:shadow-2xl hover:scale-[1.02] transition-all"
             onClick={() => navigate('/results')}
           >
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-white/20 rounded-full backdrop-blur-sm">
-                <Trophy className="w-6 h-6" />
+              <div className="p-4 bg-white/20 rounded-full backdrop-blur-sm shadow-lg">
+                <Trophy className="w-8 h-8" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-lg">My Results</h3>
+                <h3 className="font-bold text-xl mb-1">My Results</h3>
                 <p className="text-sm opacity-90">View your assessment history</p>
               </div>
             </div>

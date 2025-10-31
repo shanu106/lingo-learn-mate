@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Mic, MicOff, Volume2, ArrowLeft, Loader2 } from 'lucide-react';
+import { Mic, Volume2, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -19,6 +19,11 @@ const VoiceChat = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const synthRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [canSpeak, setCanSpeak] = useState(true);
 
   useEffect(() => {
     fetchUserProfile();
@@ -50,9 +55,10 @@ const VoiceChat = () => {
     }
   };
 
-  const speakText = (text: string) => {
+  const speakText = useCallback((text: string) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      setCanSpeak(false);
       
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = userProfile?.preferred_language || 'en-US';
@@ -60,13 +66,19 @@ const VoiceChat = () => {
       utterance.pitch = 1;
       
       utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        setCanSpeak(true);
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        setCanSpeak(true);
+      };
       
       synthRef.current = utterance;
       window.speechSynthesis.speak(utterance);
     }
-  };
+  }, [userProfile?.preferred_language]);
 
   const stopSpeech = () => {
     if ('speechSynthesis' in window) {
@@ -75,11 +87,64 @@ const VoiceChat = () => {
     }
   };
 
+  const detectSilence = useCallback(() => {
+    if (!analyserRef.current) return;
+
+    const bufferLength = analyserRef.current.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    const checkVolume = () => {
+      if (!analyserRef.current || !isListening) return;
+      
+      analyserRef.current.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+      
+      // Threshold for silence detection (adjust as needed)
+      const SILENCE_THRESHOLD = 5;
+      const SILENCE_DURATION = 2000; // 2 seconds of silence
+      
+      if (average < SILENCE_THRESHOLD) {
+        if (!silenceTimerRef.current) {
+          silenceTimerRef.current = setTimeout(() => {
+            stopRecording();
+          }, SILENCE_DURATION);
+        }
+      } else {
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+      }
+      
+      if (isListening) {
+        requestAnimationFrame(checkVolume);
+      }
+    };
+    
+    checkVolume();
+  }, [isListening]);
+
   const startRecording = async () => {
+    if (!canSpeak) {
+      toast({
+        title: 'Please wait',
+        description: 'The tutor is still speaking. Please wait for the response to finish.',
+      });
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      streamRef.current = stream;
       
+      // Set up audio analysis for VAD
+      audioContextRef.current = new AudioContext();
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      source.connect(analyserRef.current);
+      analyserRef.current.fftSize = 2048;
+      
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       audioChunksRef.current = [];
       
       mediaRecorder.ondataavailable = (event) => {
@@ -91,13 +156,16 @@ const VoiceChat = () => {
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         await processAudio(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
+        cleanup();
       };
       
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start();
       setIsListening(true);
       stopSpeech();
+      
+      // Start silence detection
+      detectSilence();
     } catch (error) {
       console.error('Error accessing microphone:', error);
       toast({
@@ -108,12 +176,35 @@ const VoiceChat = () => {
     }
   };
 
+  const cleanup = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+  };
+
   const stopRecording = () => {
     if (mediaRecorderRef.current && isListening) {
       mediaRecorderRef.current.stop();
       setIsListening(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      cleanup();
+      stopSpeech();
+    };
+  }, []);
 
   const processAudio = async (audioBlob: Blob) => {
     setIsProcessing(true);
@@ -236,18 +327,20 @@ const VoiceChat = () => {
           <div className="flex justify-center">
             <Button
               size="lg"
-              onClick={isListening ? stopRecording : startRecording}
-              disabled={isProcessing || isSpeaking}
+              onClick={startRecording}
+              disabled={isProcessing || isSpeaking || isListening}
               className={`h-32 w-32 rounded-full shadow-2xl transition-all ${
                 isListening 
                   ? 'bg-red-500 hover:bg-red-600 scale-110 animate-pulse' 
+                  : isProcessing || isSpeaking
+                  ? 'bg-gray-400 cursor-not-allowed'
                   : 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600'
               }`}
             >
               {isProcessing ? (
                 <Loader2 className="w-12 h-12 animate-spin text-white" />
               ) : isListening ? (
-                <MicOff className="w-12 h-12 text-white" />
+                <Mic className="w-12 h-12 text-white animate-pulse" />
               ) : (
                 <Mic className="w-12 h-12 text-white" />
               )}
@@ -302,7 +395,7 @@ const VoiceChat = () => {
         {/* Instructions */}
         <Card className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
           <p className="text-sm text-center">
-            <span className="font-semibold">💡 Tip:</span> Tap the microphone to ask your question, then release when done. The tutor will answer immediately!
+            <span className="font-semibold">💡 Tip:</span> Tap the microphone and start speaking. It will automatically stop when you finish and the tutor will answer!
           </p>
         </Card>
       </div>
