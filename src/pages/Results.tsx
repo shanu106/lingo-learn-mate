@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Trophy, Calendar, BookOpen, Loader2 } from 'lucide-react';
+import { ArrowLeft, Trophy, Calendar, BookOpen, Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface AssessmentResult {
@@ -42,7 +42,18 @@ const Results = () => {
 
       if (error) throw error;
 
-      setResults(data || []);
+      // Deduplicate by topic - keep only the latest result for each topic
+      const uniqueResults: AssessmentResult[] = [];
+      const seenTopics = new Set<string>();
+      
+      (data || []).forEach((result: AssessmentResult) => {
+        if (!seenTopics.has(result.topic)) {
+          seenTopics.add(result.topic);
+          uniqueResults.push(result);
+        }
+      });
+
+      setResults(uniqueResults);
     } catch (error) {
       console.error('Error fetching results:', error);
       toast({
@@ -110,33 +121,49 @@ const Results = () => {
           </Card>
         ) : (
           <div className="space-y-4">
-            {results.map((result) => (
-              <Card key={result.id} className="p-6 hover:shadow-lg transition-shadow">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="w-5 h-5 text-purple-600" />
-                      <h3 className="text-lg font-semibold">{result.topic}</h3>
+            {results.map((result) => {
+              const percentage = (result.score / result.total_questions) * 100;
+              const needsRevision = percentage < 70;
+              
+              return (
+                <Card key={result.id} className="p-6 hover:shadow-lg transition-shadow">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="w-5 h-5 text-purple-600" />
+                        <h3 className="text-lg font-semibold">{result.topic}</h3>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          {formatDate(result.completed_at)}
+                        </span>
+                        <span>Grade: {result.grade}</span>
+                      </div>
+                      {needsRevision && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigate(`/lesson/${encodeURIComponent(result.topic)}`)}
+                          className="mt-2 gap-2"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          Revise Topic
+                        </Button>
+                      )}
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        {formatDate(result.completed_at)}
-                      </span>
-                      <span>Grade: {result.grade}</span>
+                    <div className="text-right">
+                      <div className={`text-3xl font-bold ${getScoreColor(result.score, result.total_questions)}`}>
+                        {result.score}/{result.total_questions}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {Math.round(percentage)}%
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className={`text-3xl font-bold ${getScoreColor(result.score, result.total_questions)}`}>
-                      {result.score}/{result.total_questions}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {Math.round((result.score / result.total_questions) * 100)}%
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

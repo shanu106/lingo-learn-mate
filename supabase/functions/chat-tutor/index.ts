@@ -20,8 +20,13 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
+    // Get current date in UTC
+    const currentDate = new Date().toISOString().split('T')[0];
+    
     // Create a system prompt for the AI tutor
     const systemPrompt = `You are a helpful and patient tutor for a student studying in class ${studentClass || 'school'}. 
+Today's date is ${currentDate}.
+
 Your role is to:
 - Answer student questions clearly and simply
 - Explain concepts in an easy-to-understand way
@@ -31,6 +36,7 @@ Your role is to:
 - Keep responses concise but informative (2-3 sentences for simple questions, more for complex ones)
 - If the student asks a question outside their grade level, gently guide them
 - Always be encouraging and positive
+- When asked about dates or current events, use today's date: ${currentDate}
 
 Respond naturally and conversationally, as if you're speaking to them.`;
 

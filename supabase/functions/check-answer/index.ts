@@ -55,10 +55,14 @@ Respond in JSON format:
     });
 
     if (!response.ok) {
-      throw new Error('Failed to check answer');
+      const errorText = await response.text();
+      console.error('AI API error:', response.status, errorText);
+      throw new Error(`AI API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('AI response:', JSON.stringify(data));
+    
     const result = JSON.parse(data.choices[0].message.content);
 
     return new Response(JSON.stringify(result), {
