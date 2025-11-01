@@ -17,53 +17,48 @@ serve(async (req) => {
       throw new Error('Missing required fields');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
     }
 
-    // Check if answer is correct with some flexibility
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Check if answer is correct with Google Gemini API - more flexible matching
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a helpful teacher checking student answers. Respond in ${language} language.`
-          },
-          {
-            role: 'user',
-            content: `Check if this answer is correct. Be flexible with wording but strict with meaning.
-            
+        contents: [{
+          parts: [{
+            text: `You are a helpful teacher checking student answers. Be VERY FLEXIBLE with student answers. Accept answers that have the same meaning even if worded differently. Accept similar concepts and alternative explanations.
+
 Correct answer: ${correctAnswer}
 Student answer: ${userAnswer}
 
-Respond in JSON format:
+Respond in JSON format in ${language} language:
 {
-  "isCorrect": true or false,
-  "feedback": "brief feedback in ${language} (max 2 sentences)"
+  "isCorrect": true or false (be lenient - if the meaning is similar, mark as correct),
+  "feedback": "brief encouraging feedback in ${language} (max 2 sentences)"
 }`
-          }
-        ],
-        response_format: { type: "json_object" }
+          }]
+        }],
+        generationConfig: {
+          response_mime_type: "application/json"
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI API error:', response.status, errorText);
-      throw new Error(`AI API error: ${response.status} - ${errorText}`);
+      console.error('Gemini API error:', response.status, errorText);
+      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('AI response:', JSON.stringify(data));
+    console.log('Gemini response:', JSON.stringify(data));
     
-    const result = JSON.parse(data.choices[0].message.content);
+    const result = JSON.parse(data.candidates[0].content.parts[0].text);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

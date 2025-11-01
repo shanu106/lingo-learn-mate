@@ -17,9 +17,9 @@ serve(async (req) => {
       throw new Error('Missing required fields: topic, language, grade');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
     }
 
     // Language-specific system prompts
@@ -102,32 +102,33 @@ serve(async (req) => {
       ]
     }`;
 
-    console.log('Calling AI with language:', language);
+    console.log('Calling Google Gemini API with language:', language);
     
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        response_format: { type: "json_object" }
+        contents: [{
+          parts: [{
+            text: `${systemPrompt}\n\n${userPrompt}`
+          }]
+        }],
+        generationConfig: {
+          response_mime_type: "application/json"
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI API error:', response.status, errorText);
+      console.error('Gemini API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ 
-            error: 'Too many requests. Please wait a moment and try again, or upgrade for higher limits.' 
+            error: 'Too many requests. Please wait a moment and try again.' 
           }),
           {
             status: 429,
@@ -136,19 +137,19 @@ serve(async (req) => {
         );
       }
       
-      throw new Error(`AI API error: ${response.status}`);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const content = data.choices[0].message.content;
-    console.log('AI response received, processing images...');
+    const content = data.candidates[0].content.parts[0].text;
+    console.log('Gemini response received, processing images...');
     
     let lessonData;
     try {
       lessonData = JSON.parse(content);
     } catch (e) {
-      console.error('Failed to parse AI response:', content);
-      throw new Error('Invalid AI response format');
+      console.error('Failed to parse Gemini response:', content);
+      throw new Error('Invalid response format');
     }
 
     // Generate images for steps that need them
@@ -159,30 +160,27 @@ serve(async (req) => {
           try {
             console.log(`Generating image for step ${i + 1}: ${step.imagePrompt}`);
             
-            const imageResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            const imageResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${GOOGLE_GEMINI_API_KEY}`, {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                model: 'google/gemini-2.5-flash-image-preview',
-                messages: [
-                  {
-                    role: 'user',
-                    content: `Generate an educational image for ${grade} student: ${step.imagePrompt}`
-                  }
-                ],
-                modalities: ['image', 'text']
+                instances: [{
+                  prompt: `Educational illustration for ${grade} students: ${step.imagePrompt}. Make it colorful, clear, and age-appropriate.`
+                }],
+                parameters: {
+                  sampleCount: 1
+                }
               }),
             });
 
             if (imageResponse.ok) {
               const imageData = await imageResponse.json();
-              const imageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+              const imageBase64 = imageData.predictions?.[0]?.bytesBase64Encoded;
               
-              if (imageUrl) {
-                lessonData.steps[i].imageUrl = imageUrl;
+              if (imageBase64) {
+                lessonData.steps[i].imageUrl = `data:image/png;base64,${imageBase64}`;
                 console.log(`Image generated successfully for step ${i + 1}`);
               }
             } else {
