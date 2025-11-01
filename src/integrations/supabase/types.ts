@@ -21,6 +21,7 @@ export type Database = {
           id: string
           language: string | null
           score: number
+          subject: string | null
           topic: string
           total_questions: number
           user_id: string
@@ -31,6 +32,7 @@ export type Database = {
           id?: string
           language?: string | null
           score: number
+          subject?: string | null
           topic: string
           total_questions: number
           user_id: string
@@ -41,6 +43,7 @@ export type Database = {
           id?: string
           language?: string | null
           score?: number
+          subject?: string | null
           topic?: string
           total_questions?: number
           user_id?: string

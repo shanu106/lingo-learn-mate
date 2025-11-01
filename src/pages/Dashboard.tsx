@@ -107,13 +107,13 @@ const Dashboard = () => {
       // Fetch assessment results to calculate points
       const { data: assessmentData } = await supabase
         .from('assessment_results')
-        .select('score, total_questions, topic')
+        .select('score, total_questions, topic, subject, completed_at')
         .eq('user_id', user.id);
 
       // Calculate statistics based on assessment results
-      const uniqueTopics = Array.from(new Set((assessmentData || []).map(a => a.topic))).filter(Boolean);
-      const completedLessons = uniqueTopics.length;
-      const totalScore = (assessmentData || []).reduce((sum, a) => sum + (a.score || 0), 0);
+      const assessmentList = assessmentData || [];
+      const completedLessons = assessmentList.length; // count every completed lesson attempt
+      const totalScore = assessmentList.reduce((sum, a) => sum + (a.score || 0), 0);
       const points = totalScore * 10; // 10 points per correct answer
 
       setTotalLessonsCompleted(completedLessons);
@@ -132,11 +132,12 @@ const Dashboard = () => {
         { id: "social", name: "Social Studies", icon: "🌍", color: "bg-orange-500" },
       ];
 
-      // Calculate progress for each subject based on unique completed topics
+      // Calculate progress for each subject based on completed results per subject
       const subjectsWithProgress = subjectsList.map(subject => {
-        const subjectCompleted = uniqueTopics.filter(t =>
-          (t as string).toLowerCase() === subject.id.toLowerCase()
-        ).length;
+        const subjectCompleted = (assessmentList as any[]).filter((a: any) => {
+          const subjectKey = ((a.subject || a.topic) ?? '').toLowerCase();
+          return subjectKey === subject.id.toLowerCase();
+        }).length;
 
         const total = 10; // Target lessons per subject
         const progress = total > 0 ? Math.round((subjectCompleted / total) * 100) : 0;

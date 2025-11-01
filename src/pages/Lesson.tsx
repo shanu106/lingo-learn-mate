@@ -253,20 +253,22 @@ const Lesson = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Check if result already exists for this topic to prevent duplicates
-      const { data: existing } = await supabase
+      // Prevent accidental duplicate within 10s by checking last completion time for same subject/topic
+      const { data: lastResult } = await supabase
         .from('assessment_results')
-        .select('id')
+        .select('id, completed_at')
         .eq('user_id', user.id)
         .eq('topic', id || 'Unknown')
         .order('completed_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      // Only save if no recent result exists (within last 10 seconds)
-      if (existing) {
-        console.log('Result already saved, skipping duplicate');
-        return;
+      if (lastResult?.completed_at) {
+        const last = new Date(lastResult.completed_at).getTime();
+        if (Date.now() - last < 10_000) {
+          console.log('Skipping duplicate result within 10s');
+          return;
+        }
       }
 
       // Save assessment result
@@ -275,6 +277,7 @@ const Lesson = () => {
         .insert({
           user_id: user.id,
           topic: id || 'Unknown',
+          subject: id || 'Unknown',
           grade: userGrade,
           score,
           total_questions: totalQuestions,
